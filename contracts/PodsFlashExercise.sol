@@ -90,7 +90,7 @@ contract PodsFlashExercise {
                 _option.strikeToTransfer(_amount), // Amount of Strike Asset to send to the option for exercising
                 _amount // Amount of Underlying Asset to send back to the Sushi Pair
             );
-            require(flashBorrow > _min, "PFE/slippage-too-high");
+            require(flashBorrow >= _min, "PFE/slippage-too-high");
             sushiswapV2Pool.swap(flashBorrow, 0, address(this), forwardedData);
         } else {
             uint256 flashBorrow = UniswapV2Library.getAmountOut(
@@ -106,7 +106,7 @@ contract PodsFlashExercise {
                 _option.strikeToTransfer(_amount), // Amount of Strike Asset to send to the option for exercising
                 _amount // Amount of Underlying Asset to send back to the Sushi Pair
             );
-            require(flashBorrow > _min, "PFE/slippage-too-high");
+            require(flashBorrow >= _min, "PFE/slippage-too-high");
             sushiswapV2Pool.swap(0, flashBorrow, address(this), forwardedData);
         }
         flashSwapCaller = address(0);
@@ -147,7 +147,7 @@ contract PodsFlashExercise {
                 _amount, // Amount of Underlying Asset to send to the option for exercising
                 strikeToTransfer // Amount of Strike Asset to send back to the Sushi Pair
             );
-            require(flashBorrow > _min, "PFE/slippage-too-high");
+            require(flashBorrow >= _min, "PFE/slippage-too-high");
             sushiswapV2Pool.swap(0, flashBorrow, address(this), forwardedData);
         } else {
             uint256 flashBorrow = UniswapV2Library.getAmountOut(
@@ -163,7 +163,7 @@ contract PodsFlashExercise {
                 _amount, // Amount of Underlying Asset to send to the option for exercising
                 strikeToTransfer // Amount of Strike Asset to send back to the Sushi Pair
             );
-            require(flashBorrow > _min, "PFE/slippage-too-high");
+            require(flashBorrow >= _min, "PFE/slippage-too-high");
             sushiswapV2Pool.swap(flashBorrow, 0, address(this), forwardedData);
         }
         flashSwapCaller = address(0);
