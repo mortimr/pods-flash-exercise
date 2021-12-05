@@ -2,8 +2,8 @@
 pragma solidity 0.6.12;
 
 import "./interface/IPodOption.sol";
-import "./interface/ISushiswapV2Factory.sol";
-import "./interface/ISushiswapV2Pair.sol";
+import "./interface/IUniswapV2Factory.sol";
+import "./interface/IUniswapV2Pair.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/UniswapV2Library.sol";
 
@@ -13,16 +13,7 @@ import "./libraries/UniswapV2Library.sol";
 contract PodsFlashExercise {
     using SafeMathUniswap for uint256;
 
-    ISushiswapV2Factory public sushiswapV2Factory;
     address internal flashSwapCaller;
-
-    constructor(address _sushiswapV2Factory) public {
-        require(
-            _sushiswapV2Factory != address(0),
-            "PFE/null-sushiswap-v2-factory"
-        );
-        sushiswapV2Factory = ISushiswapV2Factory(_sushiswapV2Factory);
-    }
 
     /// @notice Callback called by the Pool during the Flash Swap
     /// @param _caller is the address that triggered the Flash Swap.
@@ -76,36 +67,37 @@ contract PodsFlashExercise {
     /// @param _amount Amount of Option to exercise
     /// @param _min Slippage parameter. Ensures that the call won't retrieve less than this amount.
     function _exerciseCall(
+        IUniswapV2Factory _factory,
         IPodOption _option,
         uint256 _amount,
         uint256 _min
     ) internal {
-        ISushiswapV2Pair sushiswapV2Pool = ISushiswapV2Pair(
-            sushiswapV2Factory.getPair(
+        IUniswapV2Pair uniswapV2Pool = IUniswapV2Pair(
+            _factory.getPair(
                 _option.underlyingAsset(),
                 _option.strikeAsset()
             )
         );
 
         require(
-            address(sushiswapV2Pool) != address(0),
-            "PFE/no-sushi-pool-available"
+            address(uniswapV2Pool) != address(0),
+            "PFE/no-pool-available"
         );
-        (uint128 _reserve0, uint128 _reserve1, ) = sushiswapV2Pool
+        (uint128 _reserve0, uint128 _reserve1, ) = uniswapV2Pool
             .getReserves();
 
         uint256 strikeToTransfer = _option.strikeToTransfer(_amount);
 
         // Set guard, tells the callback to expect a call from the following address
-        flashSwapCaller = address(sushiswapV2Pool);
+        flashSwapCaller = address(uniswapV2Pool);
 
         // Compute amount to borrow
         uint256 flashBorrow = UniswapV2Library.getAmountOut(
             _amount,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve1
                 : _reserve0,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve0
                 : _reserve1
         );
@@ -125,9 +117,9 @@ contract PodsFlashExercise {
         require(flashBorrow >= strikeToTransfer, "PFE/borrow-too-low");
 
         // Call Flash Swap
-        sushiswapV2Pool.swap(
-            sushiswapV2Pool.token0() == _option.strikeAsset() ? flashBorrow : 0,
-            sushiswapV2Pool.token0() == _option.strikeAsset() ? 0 : flashBorrow,
+        uniswapV2Pool.swap(
+            uniswapV2Pool.token0() == _option.strikeAsset() ? flashBorrow : 0,
+            uniswapV2Pool.token0() == _option.strikeAsset() ? 0 : flashBorrow,
             address(this),
             forwardedData
         );
@@ -141,36 +133,37 @@ contract PodsFlashExercise {
     /// @param _amount Amount of Option to exercise
     /// @param _min Slippage parameter. Ensures that the call won't retrieve less than this amount.
     function _exercisePut(
+        IUniswapV2Factory _factory,
         IPodOption _option,
         uint256 _amount,
         uint256 _min
     ) internal {
-        ISushiswapV2Pair sushiswapV2Pool = ISushiswapV2Pair(
-            sushiswapV2Factory.getPair(
+        IUniswapV2Pair uniswapV2Pool = IUniswapV2Pair(
+            _factory.getPair(
                 _option.underlyingAsset(),
                 _option.strikeAsset()
             )
         );
 
         require(
-            address(sushiswapV2Pool) != address(0),
-            "PFE/no-sushi-pool-available"
+            address(uniswapV2Pool) != address(0),
+            "PFE/no-pool-available"
         );
-        (uint128 _reserve0, uint128 _reserve1, ) = sushiswapV2Pool
+        (uint128 _reserve0, uint128 _reserve1, ) = uniswapV2Pool
             .getReserves();
 
         uint256 strikeToTransfer = _option.strikeToTransfer(_amount);
 
         // Set guard, tells the callback to expect a call from the following address
-        flashSwapCaller = address(sushiswapV2Pool);
+        flashSwapCaller = address(uniswapV2Pool);
 
         // Compute amount to borrow
         uint256 flashBorrow = UniswapV2Library.getAmountOut(
             strikeToTransfer,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve0
                 : _reserve1,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve1
                 : _reserve0
         );
@@ -190,9 +183,9 @@ contract PodsFlashExercise {
         require(flashBorrow >= _amount, "PFE/borrow-too-low");
 
         // Call Flash Swap
-        sushiswapV2Pool.swap(
-            sushiswapV2Pool.token0() == _option.strikeAsset() ? 0 : flashBorrow,
-            sushiswapV2Pool.token0() == _option.strikeAsset() ? flashBorrow : 0,
+        uniswapV2Pool.swap(
+            uniswapV2Pool.token0() == _option.strikeAsset() ? 0 : flashBorrow,
+            uniswapV2Pool.token0() == _option.strikeAsset() ? flashBorrow : 0,
             address(this),
             forwardedData
         );
@@ -202,46 +195,50 @@ contract PodsFlashExercise {
     }
 
     /// @notice Uses Sushiswap to exercise an option by leveraging Flash Swap and exercise without providing the required settlement asset
+    /// @param _uniswapV2Factory Address of an UniswapV2 Factory contract. (Any fork that support flashs swap should work)
     /// @param _option Address of the Option
     /// @param _amount Amount of Option to exercise
     /// @param _min Slippage parameter. Ensures that the call won't retrieve less than this amount.
     function flashExercise(
+        address _uniswapV2Factory,
         address _option,
         uint256 _amount,
         uint256 _min
     ) external {
+        IPodOption option = IPodOption(_option);
         require(
-            IPodOption(_option).isExerciseWindow(),
+            option.isExerciseWindow(),
             "PFE/not-exercise-window"
         );
-        uint256 optionType = IPodOption(_option).optionType();
+        uint256 optionType = option.optionType();
+        IUniswapV2Factory factory = IUniswapV2Factory(_uniswapV2Factory);
         if (optionType == 0) {
-            _exercisePut(IPodOption(_option), _amount, _min);
+            _exercisePut(factory, option, _amount, _min);
         } else {
-            _exerciseCall(IPodOption(_option), _amount, _min);
+            _exerciseCall(factory, option, _amount, _min);
         }
     }
 
     /// @notice Estimates profits of a put option by taking into account Pool reserves
     /// @param _option Address of the Option
     /// @param _amount Amount of Option to exercise
-    function _getEstimatedPutProfits(IPodOption _option, uint256 _amount)
+    function _getEstimatedPutProfits(IUniswapV2Factory _factory, IPodOption _option, uint256 _amount)
         internal
         view
-        returns (uint256)
+        returns (uint256, uint256)
     {
-        ISushiswapV2Pair sushiswapV2Pool = ISushiswapV2Pair(
-            sushiswapV2Factory.getPair(
+        IUniswapV2Pair uniswapV2Pool = IUniswapV2Pair(
+            _factory.getPair(
                 _option.underlyingAsset(),
                 _option.strikeAsset()
             )
         );
 
         require(
-            address(sushiswapV2Pool) != address(0),
-            "PFE/no-sushi-pool-available"
+            address(uniswapV2Pool) != address(0),
+            "PFE/no-pool-available"
         );
-        (uint128 _reserve0, uint128 _reserve1, ) = sushiswapV2Pool
+        (uint128 _reserve0, uint128 _reserve1, ) = uniswapV2Pool
             .getReserves();
 
         uint256 strikeToTransfer = _option.strikeToTransfer(_amount);
@@ -249,76 +246,78 @@ contract PodsFlashExercise {
         // Compute amount to borrow
         uint256 flashBorrow = UniswapV2Library.getAmountOut(
             strikeToTransfer,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve0
                 : _reserve1,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve1
                 : _reserve0
         );
 
         // There are no profits if we can't borrow more than what is required to settle the option
         if (flashBorrow > _amount) {
-            return flashBorrow - _amount;
+            return (flashBorrow, flashBorrow - _amount);
         }
-        return 0;
+        return (flashBorrow, 0);
     }
 
     /// @notice Estimates profits of a call option by taking into account Pool reserves
     /// @param _option Address of the Option
     /// @param _amount Amount of Option to exercise
-    function _getEstimatedCallProfits(IPodOption _option, uint256 _amount)
+    function _getEstimatedCallProfits(IUniswapV2Factory _factory, IPodOption _option, uint256 _amount)
         internal
         view
-        returns (uint256)
+        returns (uint256, uint256)
     {
-        ISushiswapV2Pair sushiswapV2Pool = ISushiswapV2Pair(
-            sushiswapV2Factory.getPair(
+        IUniswapV2Pair uniswapV2Pool = IUniswapV2Pair(
+            _factory.getPair(
                 _option.underlyingAsset(),
                 _option.strikeAsset()
             )
         );
 
         require(
-            address(sushiswapV2Pool) != address(0),
-            "PFE/no-sushi-pool-available"
+            address(uniswapV2Pool) != address(0),
+            "PFE/no-pool-available"
         );
-        (uint128 _reserve0, uint128 _reserve1, ) = sushiswapV2Pool
+        (uint128 _reserve0, uint128 _reserve1, ) = uniswapV2Pool
             .getReserves();
         uint256 strikeToTransfer = _option.strikeToTransfer(_amount);
 
         // Compute amount to borrow
         uint256 flashBorrow = UniswapV2Library.getAmountOut(
             _amount,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve1
                 : _reserve0,
-            sushiswapV2Pool.token0() == _option.strikeAsset()
+            uniswapV2Pool.token0() == _option.strikeAsset()
                 ? _reserve0
                 : _reserve1
         );
 
         // There are no profits if we can't borrow more than what is required to settle the option
         if (flashBorrow > strikeToTransfer) {
-            return flashBorrow - strikeToTransfer;
+            return (flashBorrow, flashBorrow - strikeToTransfer);
         }
-        return 0;
+        return (flashBorrow, 0);
     }
 
     /// @notice Estimates profits of an option by taking into account Pool reserves
+    /// @param _uniswapV2Factory Address of an UniswapV2 Factory contract. (Any fork that support flashs swap should work)
     /// @param _option Address of the Option
     /// @param _amount Amount of Option to exercise
-    function getEstimatedProfits(address _option, uint256 _amount)
+    function getEstimatedProfits(address _uniswapV2Factory, address _option, uint256 _amount)
         external
         view
-        returns (uint256)
+        returns (uint256, uint256)
     {
         IPodOption option = IPodOption(_option);
+        IUniswapV2Factory factory = IUniswapV2Factory(_uniswapV2Factory);
         uint256 optionType = option.optionType();
         if (optionType == 0) {
-            return _getEstimatedPutProfits(option, _amount);
+            return _getEstimatedPutProfits(factory, option, _amount);
         }
-        return _getEstimatedCallProfits(option, _amount);
+        return _getEstimatedCallProfits(factory, option, _amount);
     }
 
     /// @notice Get asset used to pay profits for provided option
