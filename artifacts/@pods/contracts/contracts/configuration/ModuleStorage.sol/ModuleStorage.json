@@ -1,0 +1,49 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ModuleStorage",
+  "sourceName": "@pods/contracts/contracts/configuration/ModuleStorage.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "name",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newAddress",
+          "type": "address"
+        }
+      ],
+      "name": "ModuleSet",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "name",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getModule",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b5060f48061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c806385acd64114602d575b600080fd5b605660048036036020811015604157600080fd5b81019080803590602001909291905050506082565b604051808273ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390f35b600080600083815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905091905056fea2646970667358221220bbc2c4ed5a672f3c6886a6e6cd6e4d09ac0085a5216f6f6390ba70d25e29119c64736f6c634300060c0033",
+  "deployedBytecode": "0x6080604052348015600f57600080fd5b506004361060285760003560e01c806385acd64114602d575b600080fd5b605660048036036020811015604157600080fd5b81019080803590602001909291905050506082565b604051808273ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390f35b600080600083815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905091905056fea2646970667358221220bbc2c4ed5a672f3c6886a6e6cd6e4d09ac0085a5216f6f6390ba70d25e29119c64736f6c634300060c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
