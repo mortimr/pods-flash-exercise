@@ -15,14 +15,14 @@ The goal of this utility contract is to allow anyone to exercise its ITM Pods Op
 
 ## Usage
 
-### `function flashExercise(address _uniswapV2Factory, address _option, uint256 _amount, uint256 _min) external`
+#### `function flashExercise(address _uniswapV2Factory, address _option, uint256 _amount, uint256 _min) external`
 
 Tries to perform a Flash Swap to exercise the provided option. The call revert if the total borrowed amount is lower than `_min`.
 
-### `function getEstimatedProfits(address _uniswapV2Factory, address _option, uint256 _amount) external view returns (uint256, uint256)`
+#### `function getEstimatedProfits(address _uniswapV2Factory, address _option, uint256 _amount) external view returns (uint256, uint256)`
 
 Estimated the profit from exercising the options with current state. Returns the amount that will be borrowed (can be used to adjust the `_min` slippage parameter when exercising) and the profits that are going to be sent to the user.
 
-### `function getProfitsAsset(address _option) external view returns (address)`
+#### `function getProfitsAsset(address _option) external view returns (address)`
 
 Returns the address of the profit asset.
