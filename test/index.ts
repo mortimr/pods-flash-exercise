@@ -1,4 +1,3 @@
-import { ethers } from "hardhat";
 import { FakeUSDC } from "../typechain/FakeUSDC";
 import { FakeWETH } from "../typechain/FakeWETH";
 import { SushiswapV2FactoryMock } from "../typechain/SushiswapV2FactoryMock";
@@ -13,6 +12,8 @@ import Decimal from "decimal.js";
 import chai from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { FakeAAVE } from "../typechain/FakeAAVE";
+import { Contract } from 'ethers';
+import { ethers } from 'hardhat';
 
 chai.use(chaiAsPromised);
 
@@ -208,7 +209,23 @@ describe("PodsFlashExercise", function () {
         .div(`1e${await ctx.fakeUSDC.decimals()}`)
         .toNumber()
     );
+    const profitAsset = await ctx.pfe.getProfitsAsset(
+      podOptionInstance.address
+    );
+    const ProfitAsset = new Contract(
+      profitAsset,
+      ctx.fakeWETH.interface,
+      ctx.signer
+    );
+    const preBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      podOptionInstance.address,
+      amount
+    );
     await ctx.pfe.flashExercise(podOptionInstance.address, amount, 0);
+    const postBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const difference = postBalance.sub(preBalance);
+    expect(difference.toString()).to.equal(estimatedReturns.toString());
     console.log(
       " - Underlying asset after flash exercise",
       new Decimal((await ctx.fakeWETH.balanceOf(ctx.signer.address)).toString())
@@ -284,7 +301,23 @@ describe("PodsFlashExercise", function () {
         .div(`1e${await ctx.fakeWETH.decimals()}`)
         .toNumber()
     );
+    const profitAsset = await ctx.pfe.getProfitsAsset(
+      podOptionInstance.address
+    );
+    const ProfitAsset = new Contract(
+      profitAsset,
+      ctx.fakeWETH.interface,
+      ctx.signer
+    );
+    const preBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      podOptionInstance.address,
+      amount
+    );
     await ctx.pfe.flashExercise(podOptionInstance.address, amount, 0);
+    const postBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const difference = postBalance.sub(preBalance);
+    expect(difference.toString()).to.equal(estimatedReturns.toString());
     console.log(
       " - Underlying asset after flash exercise",
       new Decimal((await ctx.fakeUSDC.balanceOf(ctx.signer.address)).toString())
@@ -357,7 +390,23 @@ describe("PodsFlashExercise", function () {
         .div(`1e${await ctx.fakeUSDC.decimals()}`)
         .toNumber()
     );
+    const profitAsset = await ctx.pfe.getProfitsAsset(
+      podOptionInstance.address
+    );
+    const ProfitAsset = new Contract(
+      profitAsset,
+      ctx.fakeWETH.interface,
+      ctx.signer
+    );
+    const preBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      podOptionInstance.address,
+      amount
+    );
     await ctx.pfe.flashExercise(podOptionInstance.address, amount, 0);
+    const postBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const difference = postBalance.sub(preBalance);
+    expect(difference.toString()).to.equal(estimatedReturns.toString());
     console.log(
       " - Underlying asset after flash exercise",
       new Decimal((await ctx.fakeWETH.balanceOf(ctx.signer.address)).toString())
@@ -435,7 +484,23 @@ describe("PodsFlashExercise", function () {
         .div(`1e${await ctx.fakeWETH.decimals()}`)
         .toNumber()
     );
+    const profitAsset = await ctx.pfe.getProfitsAsset(
+      podOptionInstance.address
+    );
+    const ProfitAsset = new Contract(
+      profitAsset,
+      ctx.fakeWETH.interface,
+      ctx.signer
+    );
+    const preBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      podOptionInstance.address,
+      amount
+    );
     await ctx.pfe.flashExercise(podOptionInstance.address, amount, 0);
+    const postBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const difference = postBalance.sub(preBalance);
+    expect(difference.toString()).to.equal(estimatedReturns.toString());
     console.log(
       " - Underlying asset after flash exercise",
       new Decimal((await ctx.fakeUSDC.balanceOf(ctx.signer.address)).toString())
@@ -448,6 +513,88 @@ describe("PodsFlashExercise", function () {
         .div(`1e${await ctx.fakeWETH.decimals()}`)
         .toNumber()
     );
+  });
+
+  it("Should fail on PUT as strike is not reached", async function () {
+    const podPutFactory = await ethers.getContractFactory("PodPutMock");
+    const oneDay = 24 * 60 * 60;
+    const expiration = Math.floor(Date.now() / 1000) + oneDay * 2;
+    const podOptionInstance = await podPutFactory.deploy(
+      "Fake Pods WETH/USDC Put",
+      "FPW/UP",
+      0,
+      ctx.fakeWETH.address,
+      ctx.fakeUSDC.address,
+      ctx.poolSpotPrice.mul(80).div(100),
+      expiration,
+      oneDay,
+      ctx.configurationManagerMock.address
+    );
+
+    const amount = BigNumber.from(10)
+      .pow(await ctx.fakeWETH.decimals())
+      .mul(1);
+
+    const amountToTransfer = await podOptionInstance.strikeToTransfer(amount);
+
+    await ctx.fakeUSDC.mint(ctx.signer.address, amountToTransfer);
+
+    await ctx.fakeUSDC.approve(podOptionInstance.address, amountToTransfer);
+
+    await podOptionInstance.mint(amount, ctx.signer.address);
+
+    await ethers.provider.send("evm_increaseTime", [oneDay]);
+
+    await podOptionInstance.approve(ctx.pfe.address, amount);
+
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      podOptionInstance.address,
+      amount
+    );
+    expect(estimatedReturns.toString()).to.equal("0");
+    await expect(
+      ctx.pfe.flashExercise(podOptionInstance.address, amount, 0)
+    ).to.eventually.be.rejectedWith("PFE/borrow-too-low");
+  });
+
+  it("Should fail on CALL as strike is not reacher", async function () {
+    const podCallFactory = await ethers.getContractFactory("PodCallMock");
+    const oneDay = 24 * 60 * 60;
+    const expiration = Math.floor(Date.now() / 1000) + oneDay * 2;
+    const podOptionInstance = await podCallFactory.deploy(
+      "Fake Pods WETH/USDC Call",
+      "FPW/UC",
+      0,
+      ctx.fakeWETH.address,
+      ctx.fakeUSDC.address,
+      ctx.poolSpotPrice.mul(120).div(100),
+      expiration,
+      oneDay,
+      ctx.configurationManagerMock.address
+    );
+
+    const amount = BigNumber.from(10)
+      .pow(await ctx.fakeWETH.decimals())
+      .mul(1);
+
+    await ctx.fakeWETH.approve(podOptionInstance.address, amount);
+
+    await ctx.fakeWETH.mint(ctx.signer.address, amount);
+
+    await podOptionInstance.mint(amount, ctx.signer.address);
+
+    await ethers.provider.send("evm_increaseTime", [oneDay]);
+
+    await podOptionInstance.approve(ctx.pfe.address, amount);
+
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      podOptionInstance.address,
+      amount
+    );
+    expect(estimatedReturns.toString()).to.equal("0");
+    await expect(
+      ctx.pfe.flashExercise(podOptionInstance.address, amount, 0)
+    ).to.eventually.be.rejectedWith("PFE/borrow-too-low");
   });
 
   it("Should fail if not in exercise window", async function () {
