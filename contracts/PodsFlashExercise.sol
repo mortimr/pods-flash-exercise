@@ -7,8 +7,6 @@ import "./interface/ISushiswapV2Pair.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/UniswapV2Library.sol";
 
-import "hardhat/console.sol";
-
 /// @title A Flash Swap exerciser for Pods Finance
 /// @author mortimr
 /// @notice You can use this contract to exercise an option without providing the required settlement asset
