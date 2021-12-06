@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "Conversion",
+  "sourceName": "@pods/contracts/contracts/lib/Conversion.sol",
+  "abi": [],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea2646970667358221220c2daaa140012aafbe59b8fb2e873d727160c5e9f455e24df622ca0e884be7eb764736f6c634300060c0033",
+  "deployedBytecode": "0x6080604052600080fdfea2646970667358221220c2daaa140012aafbe59b8fb2e873d727160c5e9f455e24df622ca0e884be7eb764736f6c634300060c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

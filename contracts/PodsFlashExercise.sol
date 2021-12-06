@@ -4,6 +4,8 @@ pragma solidity 0.6.12;
 import "./interface/IPodOption.sol";
 import "./interface/IUniswapV2Factory.sol";
 import "./interface/IUniswapV2Pair.sol";
+import "./interface/IConfigurationManager.sol";
+import "./interface/INativeAssetWrapper.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/UniswapV2Library.sol";
 
@@ -14,6 +16,14 @@ contract PodsFlashExercise {
     using SafeMathUniswap for uint256;
 
     address internal flashSwapCaller;
+
+        function _parseAddressFromUint(uint256 x) internal pure returns (address) {
+        bytes memory data = new bytes(32);
+        assembly {
+            mstore(add(data, 32), x)
+        }
+        return abi.decode(data, (address));
+    }
 
     /// @notice Callback called by the Pool during the Flash Swap
     /// @param _caller is the address that triggered the Flash Swap.
@@ -52,8 +62,16 @@ contract PodsFlashExercise {
         // We approve the settlement asset on the Option
         providedAsset.approve(_option, amountToSettleOption);
 
+        uint256 balance = address(this).balance;
+
         // We call the exercise function
         IPodOption(_option).exercise(optionAmount);
+
+        if (address(this).balance > balance) {
+            IConfigurationManager configManager = IConfigurationManager(IPodOption(_option).configurationManager());
+            INativeAssetWrapper nativeAssetWrapper = INativeAssetWrapper(_parseAddressFromUint(configManager.getParameter("WRAPPED_NETWORK_TOKEN")));
+            nativeAssetWrapper.deposit{value: address(this).balance}();
+        }
 
         // We send the retrieved asset to the Pool, completing the Flash Swap
         receivedAsset.transfer(msg.sender, flashDebt);
@@ -329,5 +347,9 @@ contract PodsFlashExercise {
             return option.underlyingAsset();
         }
         return option.strikeAsset();
+    }
+
+    receive() external payable {
+        require(flashSwapCaller != address(0), "PFE/payable-only-during-fs");
     }
 }

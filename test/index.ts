@@ -14,6 +14,7 @@ import chaiAsPromised from "chai-as-promised";
 import { FakeAAVE } from "../typechain/FakeAAVE";
 import { Contract } from 'ethers';
 import { ethers } from 'hardhat';
+import { WETH9 } from '../typechain/WETH9';
 
 chai.use(chaiAsPromised);
 
@@ -24,11 +25,14 @@ interface TestContext {
   fakeUSDC: FakeUSDC;
   fakeWETH: FakeWETH;
   fakeAAVE: FakeAAVE;
+  WETH: WETH9;
   sushiswapV2Factory: SushiswapV2FactoryMock;
   sushiswapV2Pair: UniswapV2Pair;
+  sushiswapV2WETH9Pair: UniswapV2Pair;
   configurationManagerMock: ConfigurationManager;
   pfe: PodsFlashExercise;
   poolSpotPrice: BigNumber;
+  weth9PoolSpotPrice: BigNumber;
   signer: SignerWithAddress;
 }
 
@@ -36,12 +40,15 @@ describe("PodsFlashExercise", function () {
   const ctx: TestContext = {
     fakeUSDC: null,
     fakeWETH: null,
+    WETH: null,
     fakeAAVE: null,
     sushiswapV2Factory: null,
     sushiswapV2Pair: null,
+    sushiswapV2WETH9Pair: null,
     configurationManagerMock: null,
     pfe: null,
     poolSpotPrice: null,
+    weth9PoolSpotPrice: null,
     signer: null,
   };
   let snapshotId;
@@ -61,6 +68,8 @@ describe("PodsFlashExercise", function () {
     ctx.fakeUSDC = await FakeUSDCFactory.deploy();
     const FakeWETHFactory = await ethers.getContractFactory("FakeWETH");
     ctx.fakeWETH = await FakeWETHFactory.deploy();
+    const WETH9Factory = await ethers.getContractFactory("WETH9");
+    ctx.WETH = await WETH9Factory.deploy();
     const FakeAAVEFactory = await ethers.getContractFactory("FakeAAVE");
     ctx.fakeAAVE = await FakeAAVEFactory.deploy();
     const ConfigurationManagerFactory = await ethers.getContractFactory(
@@ -80,59 +89,124 @@ describe("PodsFlashExercise", function () {
       ctx.fakeUSDC.address,
       ctx.fakeWETH.address
     );
+    await ctx.sushiswapV2Factory.createPair(
+      ctx.fakeUSDC.address,
+      ctx.WETH.address
+    );
     const pairAddress = await ctx.sushiswapV2Factory.getPair(
       ctx.fakeUSDC.address,
       ctx.fakeWETH.address
     );
+    const weth9PairAddress = await ctx.sushiswapV2Factory.getPair(
+      ctx.fakeUSDC.address,
+      ctx.WETH.address
+    );
     ctx.sushiswapV2Pair = new UniswapV2Pair__factory(
       (await ethers.getSigners())[0]
     ).attach(pairAddress);
+    ctx.sushiswapV2WETH9Pair = new UniswapV2Pair__factory(
+      (await ethers.getSigners())[0]
+    ).attach(weth9PairAddress);
 
     const PFEFactory = await ethers.getContractFactory("PodsFlashExercise");
     ctx.pfe = await PFEFactory.deploy();
 
-    await ctx.fakeUSDC.mint(
-      ctx.sushiswapV2Pair.address,
-      BigNumber.from(1000000).mul(
-        BigNumber.from(10).pow(await ctx.fakeUSDC.decimals())
-      )
-    );
-    await ctx.fakeWETH.mint(
-      ctx.sushiswapV2Pair.address,
-      BigNumber.from(1000).mul(
-        BigNumber.from(10).pow(await ctx.fakeWETH.decimals())
-      )
-    );
-    await ctx.sushiswapV2Pair.mint(signer.address);
-    const reserves = await ctx.sushiswapV2Pair.getReserves();
-    if (
-      getAddress(await ctx.sushiswapV2Pair.token0()) ===
-      getAddress(ctx.fakeUSDC.address)
-    ) {
-      ctx.poolSpotPrice = BigNumber.from(10)
-        .pow(await ctx.fakeUSDC.decimals())
-        .mul(reserves._reserve0)
-        .div(reserves._reserve1);
-    } else {
-      ctx.poolSpotPrice = BigNumber.from(10)
-        .pow(await ctx.fakeUSDC.decimals())
-        .mul(reserves._reserve1)
-        .div(reserves._reserve0);
+    {
+      await ctx.fakeUSDC.mint(
+        ctx.sushiswapV2WETH9Pair.address,
+        BigNumber.from(1000000).mul(
+          BigNumber.from(10).pow(await ctx.fakeUSDC.decimals())
+        )
+      );
+      await ctx.WETH.deposit({
+        value: BigNumber.from(1000).mul(
+          BigNumber.from(10).pow(await ctx.WETH.decimals())
+        ),
+      });
+      await ctx.WETH.transfer(
+        ctx.sushiswapV2WETH9Pair.address,
+        BigNumber.from(1000).mul(
+          BigNumber.from(10).pow(await ctx.WETH.decimals())
+        )
+      );
+      await ctx.sushiswapV2WETH9Pair.mint(signer.address);
+      const reserves = await ctx.sushiswapV2WETH9Pair.getReserves();
+      if (
+        getAddress(await ctx.sushiswapV2WETH9Pair.token0()) ===
+        getAddress(ctx.fakeUSDC.address)
+      ) {
+        ctx.weth9PoolSpotPrice = BigNumber.from(10)
+          .pow(await ctx.fakeUSDC.decimals())
+          .mul(reserves._reserve0)
+          .div(reserves._reserve1);
+      } else {
+        ctx.weth9PoolSpotPrice = BigNumber.from(10)
+          .pow(await ctx.fakeUSDC.decimals())
+          .mul(reserves._reserve1)
+          .div(reserves._reserve0);
+      }
+      console.log(
+        `1.000 x $${await ctx.WETH.symbol()} = ${new Decimal(
+          ctx.weth9PoolSpotPrice.toString()
+        )
+          .div(`1e${await ctx.fakeUSDC.decimals()}`)
+          .toFixed(3)} $${await ctx.fakeUSDC.symbol()}`
+      );
+      console.log();
     }
-    console.log(
-      `1.000 x $${await ctx.fakeWETH.symbol()} = ${new Decimal(
-        ctx.poolSpotPrice.toString()
-      )
-        .div(`1e${await ctx.fakeUSDC.decimals()}`)
-        .toFixed(3)} $${await ctx.fakeUSDC.symbol()}`
-    );
-    console.log();
+    {
+      await ctx.fakeUSDC.mint(
+        ctx.sushiswapV2Pair.address,
+        BigNumber.from(1000000).mul(
+          BigNumber.from(10).pow(await ctx.fakeUSDC.decimals())
+        )
+      );
+      await ctx.fakeWETH.mint(
+        ctx.sushiswapV2Pair.address,
+        BigNumber.from(1000).mul(
+          BigNumber.from(10).pow(await ctx.fakeWETH.decimals())
+        )
+      );
+      await ctx.sushiswapV2Pair.mint(signer.address);
+      const reserves = await ctx.sushiswapV2Pair.getReserves();
+      if (
+        getAddress(await ctx.sushiswapV2Pair.token0()) ===
+        getAddress(ctx.fakeUSDC.address)
+      ) {
+        ctx.poolSpotPrice = BigNumber.from(10)
+          .pow(await ctx.fakeUSDC.decimals())
+          .mul(reserves._reserve0)
+          .div(reserves._reserve1);
+      } else {
+        ctx.poolSpotPrice = BigNumber.from(10)
+          .pow(await ctx.fakeUSDC.decimals())
+          .mul(reserves._reserve1)
+          .div(reserves._reserve0);
+      }
+      console.log(
+        `1.000 x $${await ctx.fakeWETH.symbol()} = ${new Decimal(
+          ctx.poolSpotPrice.toString()
+        )
+          .div(`1e${await ctx.fakeUSDC.decimals()}`)
+          .toFixed(3)} $${await ctx.fakeUSDC.symbol()}`
+      );
+      console.log();
+    }
     await snapshot();
   });
 
   beforeEach(async function () {
     await restore();
     await snapshot();
+  });
+
+  it("Should fail on eth receiver while not in flash swap ", async function () {
+    await expect(
+      ctx.signer.sendTransaction({
+        to: ctx.pfe.address,
+        value: BigNumber.from("1000000000000000000"),
+      })
+    ).to.eventually.be.rejectedWith("PFE/payable-only-during-fs");
   });
 
   it("Should fail on unexpected callback invocation swap caller", async function () {
@@ -145,6 +219,101 @@ describe("PodsFlashExercise", function () {
     await expect(
       ctx.pfe.uniswapV2Call(ctx.pfe.address, 0, 0, "0x")
     ).to.eventually.be.rejectedWith("PFE/invalid-callback-caller");
+  });
+
+  it("Properly exercise WETH9/USDC Pods Call (wrapped native network asset)", async function () {
+    const podCallFactory = await ethers.getContractFactory("WPodCallMock");
+    const oneDay = 24 * 60 * 60;
+    const expiration = Math.floor(Date.now() / 1000) + oneDay * 2;
+    await ctx.configurationManagerMock.setParameter(
+      ethers.utils.formatBytes32String("WRAPPED_NETWORK_TOKEN"),
+      ctx.WETH.address
+    );
+    const podOptionInstance = await podCallFactory.deploy(
+      "Fake Pods WETH9/USDC Call",
+      "FPW/UC",
+      0,
+      ctx.fakeUSDC.address,
+      ctx.poolSpotPrice.mul(80).div(100),
+      expiration,
+      oneDay,
+      ctx.configurationManagerMock.address
+    );
+
+    const amount = BigNumber.from(10)
+      .pow(await ctx.fakeWETH.decimals())
+      .mul(1);
+
+    await ctx.WETH.approve(podOptionInstance.address, amount);
+
+    await ctx.WETH.deposit({ value: amount });
+
+    await podOptionInstance.mint(amount, ctx.signer.address);
+
+    await ethers.provider.send("evm_increaseTime", [oneDay]);
+
+    await podOptionInstance.approve(ctx.pfe.address, amount);
+
+    const displayAmount = new Decimal(amount.toString()).div(
+      `1e${await ctx.fakeWETH.decimals()}`
+    );
+
+    console.log(
+      `For ${displayAmount.toFixed(
+        3
+      )} x ${await podOptionInstance.name()} @ ${new Decimal(
+        (await podOptionInstance.strikePrice()).toString()
+      )
+        .div(`1e${await ctx.fakeUSDC.decimals()}`)
+        .toFixed(3)} $${await ctx.fakeUSDC.symbol()}:`
+    );
+    console.log(
+      " - Underlying asset before flash exercise",
+      new Decimal((await ctx.WETH.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.WETH.decimals()}`)
+        .toNumber()
+    );
+    console.log(
+      " - Strike asset before flash exercise",
+      new Decimal((await ctx.fakeUSDC.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.fakeUSDC.decimals()}`)
+        .toNumber()
+    );
+    const profitAsset = await ctx.pfe.getProfitsAsset(
+      podOptionInstance.address
+    );
+    const ProfitAsset = new Contract(
+      profitAsset,
+      ctx.WETH.interface,
+      ctx.signer
+    );
+    const preBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      ctx.sushiswapV2Factory.address,
+      podOptionInstance.address,
+      amount
+    );
+    await ctx.pfe.flashExercise(
+      ctx.sushiswapV2Factory.address,
+      podOptionInstance.address,
+      amount,
+      estimatedReturns[0]
+    );
+    const postBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const difference = postBalance.sub(preBalance);
+    expect(difference.toString()).to.equal(estimatedReturns[1].toString());
+    console.log(
+      " - Underlying asset after flash exercise",
+      new Decimal((await ctx.WETH.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.WETH.decimals()}`)
+        .toNumber()
+    );
+    console.log(
+      " - Strike asset after flash exercise",
+      new Decimal((await ctx.fakeUSDC.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.fakeUSDC.decimals()}`)
+        .toNumber()
+    );
   });
 
   it("Properly exercise WETH/USDC Pods Call", async function () {
@@ -333,6 +502,104 @@ describe("PodsFlashExercise", function () {
       " - Strike asset after flash exercise",
       new Decimal((await ctx.fakeWETH.balanceOf(ctx.signer.address)).toString())
         .div(`1e${await ctx.fakeWETH.decimals()}`)
+        .toNumber()
+    );
+  });
+
+  it("Properly exercise WETH9/USDC Pods Put", async function () {
+    const podPutFactory = await ethers.getContractFactory("WPodPutMock");
+    const oneDay = 24 * 60 * 60;
+    const expiration = Math.floor(Date.now() / 1000) + oneDay * 2;
+    await ctx.configurationManagerMock.setParameter(
+      ethers.utils.formatBytes32String("WRAPPED_NETWORK_TOKEN"),
+      ctx.WETH.address
+    );
+    const podOptionInstance = await podPutFactory.deploy(
+      "Fake Pods WETH9/USDC Put",
+      "FPW/UP",
+      0,
+      ctx.fakeUSDC.address,
+      ctx.poolSpotPrice.mul(120).div(100),
+      expiration,
+      oneDay,
+      ctx.configurationManagerMock.address
+    );
+
+    const amount = BigNumber.from(10)
+      .pow(await ctx.WETH.decimals())
+      .mul(1);
+
+    const amountToTransfer = await podOptionInstance.strikeToTransfer(amount);
+
+    await ctx.fakeUSDC.mint(ctx.signer.address, amountToTransfer);
+
+    await ctx.fakeUSDC.approve(podOptionInstance.address, amountToTransfer);
+
+    await podOptionInstance.mint(amount, ctx.signer.address);
+
+    await ethers.provider.send("evm_increaseTime", [oneDay]);
+
+    await podOptionInstance.approve(ctx.pfe.address, amount);
+
+    const displayAmount = new Decimal(amount.toString()).div(
+      `1e${await ctx.WETH.decimals()}`
+    );
+
+    console.log(
+      `For ${displayAmount.toFixed(
+        3
+      )} x ${await podOptionInstance.name()} @ ${new Decimal(
+        (await podOptionInstance.strikePrice()).toString()
+      )
+        .div(`1e${await ctx.fakeUSDC.decimals()}`)
+        .toFixed(3)} $${await ctx.fakeUSDC.symbol()}:`
+    );
+
+    console.log(
+      " - Underlying asset before flash exercise",
+      new Decimal((await ctx.WETH.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.WETH.decimals()}`)
+        .toNumber()
+    );
+    console.log(
+      " - Strike asset before flash exercise",
+      new Decimal((await ctx.fakeUSDC.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.fakeUSDC.decimals()}`)
+        .toNumber()
+    );
+    const profitAsset = await ctx.pfe.getProfitsAsset(
+      podOptionInstance.address
+    );
+    const ProfitAsset = new Contract(
+      profitAsset,
+      ctx.WETH.interface,
+      ctx.signer
+    );
+    const preBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const estimatedReturns = await ctx.pfe.getEstimatedProfits(
+      ctx.sushiswapV2Factory.address,
+      podOptionInstance.address,
+      amount
+    );
+    await ctx.pfe.flashExercise(
+      ctx.sushiswapV2Factory.address,
+      podOptionInstance.address,
+      amount,
+      estimatedReturns[0]
+    );
+    const postBalance = await ProfitAsset.balanceOf(ctx.signer.address);
+    const difference = postBalance.sub(preBalance);
+    expect(difference.toString()).to.equal(estimatedReturns[1].toString());
+    console.log(
+      " - Underlying asset after flash exercise",
+      new Decimal((await ctx.WETH.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.WETH.decimals()}`)
+        .toNumber()
+    );
+    console.log(
+      " - Strike asset after flash exercise",
+      new Decimal((await ctx.fakeUSDC.balanceOf(ctx.signer.address)).toString())
+        .div(`1e${await ctx.fakeUSDC.decimals()}`)
         .toNumber()
     );
   });

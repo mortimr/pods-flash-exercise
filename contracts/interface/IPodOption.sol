@@ -18,4 +18,6 @@ interface IPodOption is IERC20 {
     function isExerciseWindow() external view returns (bool);
 
     function exercise(uint256 amountOfOptions) external;
+
+    function configurationManager() external view returns (address);
 }
